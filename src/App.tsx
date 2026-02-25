@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 import type { Job } from './data/jobs'
@@ -23,10 +23,29 @@ type Filters = {
   mode: string
   experience: string
   source: string
-  sort: 'latest' | 'oldest'
+  sort: 'latest' | 'match' | 'salary'
 }
 
 const SAVED_STORAGE_KEY = 'job-notification-tracker:savedJobIds'
+const PREFERENCES_STORAGE_KEY = 'jobTrackerPreferences'
+
+type Preferences = {
+  roleKeywords: string
+  preferredLocations: string[]
+  preferredMode: string[]
+  experienceLevel: string
+  skills: string
+  minMatchScore: number
+}
+
+const defaultPreferences: Preferences = {
+  roleKeywords: '',
+  preferredLocations: [],
+  preferredMode: [],
+  experienceLevel: '',
+  skills: '',
+  minMatchScore: 40,
+}
 
 function getInitialSavedIds(): string[] {
   if (typeof window === 'undefined') {
@@ -67,6 +86,140 @@ function useSavedJobs(): SavedState {
   }
 
   return { savedIds, toggleSaved }
+}
+
+function getInitialPreferences(): Preferences {
+  if (typeof window === 'undefined') {
+    return defaultPreferences
+  }
+
+  try {
+    const stored = window.localStorage.getItem(PREFERENCES_STORAGE_KEY)
+    if (!stored) return defaultPreferences
+    const parsed = JSON.parse(stored) as Partial<Preferences>
+    return {
+      ...defaultPreferences,
+      ...parsed,
+      preferredLocations: Array.isArray(parsed.preferredLocations)
+        ? parsed.preferredLocations.filter((value) => typeof value === 'string')
+        : [],
+      preferredMode: Array.isArray(parsed.preferredMode)
+        ? parsed.preferredMode.filter((value) => typeof value === 'string')
+        : [],
+      minMatchScore:
+        typeof parsed.minMatchScore === 'number' && parsed.minMatchScore >= 0
+          ? Math.min(100, Math.max(0, parsed.minMatchScore))
+          : defaultPreferences.minMatchScore,
+    }
+  } catch {
+    return defaultPreferences
+  }
+}
+
+type PreferencesState = {
+  preferences: Preferences
+  setPreferences: (updater: (current: Preferences) => Preferences) => void
+}
+
+function usePreferences(): PreferencesState {
+  const [preferences, setPreferencesState] = useState<Preferences>(() => getInitialPreferences())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences))
+    } catch {
+      // ignore storage errors
+    }
+  }, [preferences])
+
+  const setPreferences = (updater: (current: Preferences) => Preferences) => {
+    setPreferencesState((current) => updater(current))
+  }
+
+  return { preferences, setPreferences }
+}
+
+function computeMatchScore(job: Job, preferences: Preferences): number {
+  let score = 0
+
+  const rawRoleKeywords = preferences.roleKeywords
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+  const rawSkills = preferences.skills
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+
+  const title = job.title.toLowerCase()
+  const description = job.description.toLowerCase()
+
+  if (
+    rawRoleKeywords.length > 0 &&
+    rawRoleKeywords.some((keyword) => title.includes(keyword))
+  ) {
+    score += 25
+  }
+
+  if (
+    rawRoleKeywords.length > 0 &&
+    rawRoleKeywords.some((keyword) => description.includes(keyword))
+  ) {
+    score += 15
+  }
+
+  if (
+    preferences.preferredLocations.length > 0 &&
+    preferences.preferredLocations.includes(job.location)
+  ) {
+    score += 15
+  }
+
+  if (
+    preferences.preferredMode.length > 0 &&
+    preferences.preferredMode.includes(job.mode)
+  ) {
+    score += 10
+  }
+
+  if (preferences.experienceLevel && job.experience === preferences.experienceLevel) {
+    score += 10
+  }
+
+  if (rawSkills.length > 0) {
+    const jobSkills = job.skills.map((skill) => skill.toLowerCase())
+    const overlap = rawSkills.some((skill) => jobSkills.includes(skill))
+    if (overlap) {
+      score += 15
+    }
+  }
+
+  if (job.postedDaysAgo <= 2) {
+    score += 5
+  }
+
+  if (job.source === 'LinkedIn') {
+    score += 5
+  }
+
+  if (score > 100) {
+    return 100
+  }
+
+  return score
+}
+
+function parseSalaryValue(salaryRange: string): number {
+  const numericMatches = salaryRange.match(/\d+/g)
+  if (!numericMatches || numericMatches.length === 0) {
+    return 0
+  }
+
+  const base = Number(numericMatches[0])
+  if (Number.isNaN(base)) return 0
+
+  return base
 }
 
 type PageProps = {
@@ -122,7 +275,12 @@ function LandingPage() {
   )
 }
 
-function SettingsPage() {
+type SettingsPageProps = {
+  preferences: Preferences
+  setPreferences: (updater: (current: Preferences) => Preferences) => void
+}
+
+function SettingsPage({ preferences, setPreferences }: SettingsPageProps) {
   return (
     <main className="layout-columns">
       <section className="primary-workspace">
@@ -142,6 +300,10 @@ function SettingsPage() {
               id="role-keywords"
               className="text-input"
               placeholder="e.g. Frontend Engineer, Data Analyst, SDE 1"
+              value={preferences.roleKeywords}
+              onChange={(event) =>
+                setPreferences((current) => ({ ...current, roleKeywords: event.target.value }))
+              }
             />
           </div>
 
@@ -149,25 +311,58 @@ function SettingsPage() {
             <label className="field-label" htmlFor="preferred-locations">
               Preferred locations
             </label>
-            <input
+            <select
               id="preferred-locations"
               className="text-input"
-              placeholder="e.g. Bengaluru, Remote within India"
-            />
+              multiple
+              value={preferences.preferredLocations}
+              onChange={(event) => {
+                const options = Array.from(event.target.selectedOptions).map(
+                  (option) => option.value,
+                )
+                setPreferences((current) => ({ ...current, preferredLocations: options }))
+              }}
+            >
+              <option value="Bengaluru, Karnataka">Bengaluru, Karnataka</option>
+              <option value="Hyderabad, Telangana">Hyderabad, Telangana</option>
+              <option value="Chennai, Tamil Nadu">Chennai, Tamil Nadu</option>
+              <option value="Pune, Maharashtra">Pune, Maharashtra</option>
+              <option value="Mumbai, Maharashtra">Mumbai, Maharashtra</option>
+              <option value="Noida, Uttar Pradesh">Noida, Uttar Pradesh</option>
+              <option value="Gurugram, Haryana">Gurugram, Haryana</option>
+              <option value="Mysuru, Karnataka">Mysuru, Karnataka</option>
+              <option value="Kochi, Kerala">Kochi, Kerala</option>
+              <option value="Coimbatore, Tamil Nadu">Coimbatore, Tamil Nadu</option>
+              <option value="Remote, India">Remote, India</option>
+            </select>
           </div>
 
           <div className="field">
             <span className="field-label">Mode</span>
             <div className="settings-options">
-              <button type="button" className="btn btn-secondary">
-                Remote
-              </button>
-              <button type="button" className="btn btn-secondary">
-                Hybrid
-              </button>
-              <button type="button" className="btn btn-secondary">
-                Onsite
-              </button>
+              {['Remote', 'Hybrid', 'Onsite'].map((mode) => {
+                const checked = preferences.preferredMode.includes(mode)
+                return (
+                  <label key={mode} className="settings-option">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setPreferences((current) => {
+                          const exists = current.preferredMode.includes(mode)
+                          return {
+                            ...current,
+                            preferredMode: exists
+                              ? current.preferredMode.filter((value) => value !== mode)
+                              : [...current.preferredMode, mode],
+                          }
+                        })
+                      }
+                    />
+                    <span>{mode}</span>
+                  </label>
+                )
+              })}
             </div>
           </div>
 
@@ -175,11 +370,59 @@ function SettingsPage() {
             <label className="field-label" htmlFor="experience-level">
               Experience level
             </label>
-            <input
+            <select
               id="experience-level"
               className="text-input"
-              placeholder="e.g. Final year, 0–2 years, 3–5 years"
+              value={preferences.experienceLevel}
+              onChange={(event) =>
+                setPreferences((current) => ({
+                  ...current,
+                  experienceLevel: event.target.value,
+                }))
+              }
+            >
+              <option value="">Any</option>
+              <option value="Fresher">Fresher</option>
+              <option value="0-1">0-1</option>
+              <option value="1-3">1-3</option>
+              <option value="3-5">3-5</option>
+            </select>
+          </div>
+
+          <div className="field">
+            <label className="field-label" htmlFor="skills-input">
+              Skills
+            </label>
+            <input
+              id="skills-input"
+              className="text-input"
+              placeholder="e.g. React, Java, SQL"
+              value={preferences.skills}
+              onChange={(event) =>
+                setPreferences((current) => ({ ...current, skills: event.target.value }))
+              }
             />
+          </div>
+
+          <div className="field">
+            <label className="field-label" htmlFor="min-match-score">
+              Minimum match score
+            </label>
+            <input
+              id="min-match-score"
+              type="range"
+              min={0}
+              max={100}
+              value={preferences.minMatchScore}
+              onChange={(event) => {
+                const value = Number(event.target.value)
+                setPreferences((current) => ({
+                  ...current,
+                  minMatchScore: Number.isNaN(value) ? current.minMatchScore : value,
+                }))
+              }}
+            />
+            <p className="placeholder-subtext">Current threshold: {preferences.minMatchScore}</p>
           </div>
         </div>
       </section>
@@ -201,7 +444,18 @@ type DashboardProps = {
   onToggleSaved: (id: string) => void
 }
 
-function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
+type DashboardWithPreferencesProps = DashboardProps & {
+  preferences: Preferences
+  hasPreferences: boolean
+}
+
+function DashboardPage({
+  jobs,
+  savedIds,
+  onToggleSaved,
+  preferences,
+  hasPreferences,
+}: DashboardWithPreferencesProps) {
   const [filters, setFilters] = useState<Filters>({
     keyword: '',
     location: '',
@@ -211,13 +465,23 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
     sort: 'latest',
   })
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
+  const [showOnlyMatches, setShowOnlyMatches] = useState(false)
 
   const handleChangeFilter = (field: keyof Filters, value: string) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
   }
 
-  const filteredJobs = jobs
-    .filter((job) => {
+  const scoredJobs = useMemo(
+    () =>
+      jobs.map((job) => ({
+        job,
+        matchScore: computeMatchScore(job, preferences),
+      })),
+    [jobs, preferences],
+  )
+
+  const filteredJobs = scoredJobs
+    .filter(({ job, matchScore }) => {
       const keyword = filters.keyword.trim().toLowerCase()
       if (keyword) {
         const inTitle = job.title.toLowerCase().includes(keyword)
@@ -230,13 +494,25 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
       if (filters.experience && job.experience !== filters.experience) return false
       if (filters.source && job.source !== filters.source) return false
 
+      if (showOnlyMatches && matchScore < preferences.minMatchScore) {
+        return false
+      }
+
       return true
     })
     .sort((a, b) => {
-      if (filters.sort === 'latest') {
-        return a.postedDaysAgo - b.postedDaysAgo
+      if (filters.sort === 'match') {
+        return b.matchScore - a.matchScore
       }
-      return b.postedDaysAgo - a.postedDaysAgo
+
+      if (filters.sort === 'salary') {
+        const aSalary = parseSalaryValue(a.job.salaryRange)
+        const bSalary = parseSalaryValue(b.job.salaryRange)
+        return bSalary - aSalary
+      }
+
+      // latest
+      return a.job.postedDaysAgo - b.job.postedDaysAgo
     })
 
   const locations = Array.from(new Set(jobs.map((job) => job.location))).sort()
@@ -253,6 +529,12 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
           Browse realistic, placement-ready roles sourced from Indian tech companies. Filters are
           local to this page and do not affect future steps.
         </p>
+
+        {!hasPreferences ? (
+          <p className="placeholder-subtext">
+            Set your preferences to activate intelligent matching.
+          </p>
+        ) : null}
 
         <div className="filter-bar">
           <div className="filter-bar__row">
@@ -354,21 +636,44 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
                 className="filter-select"
                 value={filters.sort}
                 onChange={(event) =>
-                  handleChangeFilter('sort', event.target.value === 'oldest' ? 'oldest' : 'latest')
+                  handleChangeFilter(
+                    'sort',
+                    event.target.value === 'match'
+                      ? 'match'
+                      : event.target.value === 'salary'
+                        ? 'salary'
+                        : 'latest',
+                  )
                 }
               >
                 <option value="latest">Latest</option>
-                <option value="oldest">Oldest</option>
+                <option value="match">Match score</option>
+                <option value="salary">Salary</option>
               </select>
             </div>
+          </div>
+
+          <div className="filter-bar__row">
+            <label className="settings-option">
+              <input
+                type="checkbox"
+                checked={showOnlyMatches}
+                onChange={(event) => setShowOnlyMatches(event.target.checked)}
+              />
+              <span>Show only jobs above my threshold</span>
+            </label>
           </div>
         </div>
 
         {filteredJobs.length === 0 ? (
-          <p className="placeholder-subtext">No jobs match your search.</p>
+          <p className="placeholder-subtext">
+            {hasPreferences
+              ? 'No roles match your criteria. Adjust filters or lower threshold.'
+              : 'No jobs match your search.'}
+          </p>
         ) : (
           <div className="job-list">
-            {filteredJobs.map((job) => {
+            {filteredJobs.map(({ job, matchScore }) => {
               const isSaved = savedIds.includes(job.id)
               const postedLabel =
                 job.postedDaysAgo === 0
@@ -376,6 +681,15 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
                   : job.postedDaysAgo === 1
                     ? '1 day ago'
                     : `${job.postedDaysAgo} days ago`
+
+              let matchClass = 'match-badge--low'
+              if (matchScore >= 80) {
+                matchClass = 'match-badge--high'
+              } else if (matchScore >= 60) {
+                matchClass = 'match-badge--medium'
+              } else if (matchScore >= 40) {
+                matchClass = 'match-badge--base'
+              }
 
               return (
                 <article key={job.id} className="job-card">
@@ -391,6 +705,7 @@ function DashboardPage({ jobs, savedIds, onToggleSaved }: DashboardProps) {
                       </div>
                     </div>
                     <div className="job-card__meta">
+                      <span className={`match-badge ${matchClass}`}>Match {matchScore}</span>
                       <span className="meta-pill">{job.experience} years</span>
                       <span className="meta-pill">{job.salaryRange}</span>
                       <span className="source-badge">{job.source}</span>
@@ -634,7 +949,15 @@ function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const stepTotal = 4
   const currentStep = 2
+   const { preferences, setPreferences } = usePreferences()
   const { savedIds, toggleSaved } = useSavedJobs()
+
+  const hasPreferences =
+    preferences.roleKeywords.trim().length > 0 ||
+    preferences.skills.trim().length > 0 ||
+    preferences.preferredLocations.length > 0 ||
+    preferences.preferredMode.length > 0 ||
+    Boolean(preferences.experienceLevel)
 
   const handleToggleMenu = () => {
     setMenuOpen((open) => !open)
@@ -714,14 +1037,25 @@ function AppShell() {
         <Route path="/" element={<LandingPage />} />
         <Route
           path="/dashboard"
-          element={<DashboardPage jobs={allJobs} savedIds={savedIds} onToggleSaved={toggleSaved} />}
+          element={
+            <DashboardPage
+              jobs={allJobs}
+              savedIds={savedIds}
+              onToggleSaved={toggleSaved}
+              preferences={preferences}
+              hasPreferences={hasPreferences}
+            />
+          }
         />
         <Route
           path="/saved"
           element={<SavedPage jobs={allJobs} savedIds={savedIds} onToggleSaved={toggleSaved} />}
         />
         <Route path="/digest" element={<DigestPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route
+          path="/settings"
+          element={<SettingsPage preferences={preferences} setPreferences={setPreferences} />}
+        />
         <Route path="/proof" element={<ProofPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
