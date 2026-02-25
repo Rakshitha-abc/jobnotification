@@ -340,6 +340,12 @@ small {
   font-size: 0.85rem;
 }
 
+.settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .text-input,
 .text-area {
   border-radius: var(--radius);
@@ -473,6 +479,159 @@ small {
 .placeholder-subtext {
   margin-top: var(--space-1);
   font-size: 0.95rem;
+}
+
+.filter-bar {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.filter-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 160px;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+}
+
+.filter-input,
+.filter-select {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.job-card {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: var(--space-2);
+  background-color: var(--color-bg);
+}
+
+.job-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.job-card__title {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 1.05rem;
+}
+
+.job-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.job-card__footer {
+  margin-top: var(--space-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.job-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.source-badge {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-accent);
+  padding: 4px var(--space-1);
+  font-size: 0.8rem;
+}
+
+.meta-pill {
+  padding: 2px var(--space-1);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  font-size: 0.8rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(17, 17, 17, 0.25);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.modal-card {
+  max-width: 640px;
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  background-color: var(--color-bg);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.modal-title {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 1.2rem;
+}
+
+.modal-close {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  background-color: var(--color-bg);
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tag-pill {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: 2px var(--space-1);
+  font-size: 0.8rem;
 }
 
 @media (max-width: 960px) {
