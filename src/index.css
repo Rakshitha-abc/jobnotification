@@ -107,6 +107,92 @@ small {
   gap: var(--space-1);
 }
 
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.top-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.top-nav__links--desktop {
+  display: flex;
+}
+
+.top-nav__link {
+  position: relative;
+  font-size: 0.9rem;
+  padding-bottom: var(--space-1);
+}
+
+.top-nav__link--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background-color: var(--color-accent);
+}
+
+.top-nav__menu-button {
+  display: none;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: 8px;
+  background-color: var(--color-bg);
+  cursor: pointer;
+}
+
+.top-nav__menu-icon {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background-color: var(--color-text);
+  position: relative;
+}
+
+.top-nav__menu-icon::before,
+.top-nav__menu-icon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background-color: var(--color-text);
+}
+
+.top-nav__menu-icon::before {
+  top: -6px;
+}
+
+.top-nav__menu-icon::after {
+  top: 6px;
+}
+
+.top-nav__mobile-panel {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.top-nav__mobile-link {
+  font-size: 0.95rem;
+  padding-bottom: var(--space-1);
+}
+
+.top-nav__mobile-link--active {
+  border-bottom: 2px solid var(--color-accent);
+}
+
 .status-badge {
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius);
@@ -379,6 +465,16 @@ small {
   border: 1px solid var(--color-text);
 }
 
+.placeholder-title {
+  font-size: 2rem;
+  margin-top: var(--space-2);
+}
+
+.placeholder-subtext {
+  margin-top: var(--space-1);
+  font-size: 0.95rem;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     padding: var(--space-2);
@@ -386,6 +482,16 @@ small {
 
   .layout-columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-nav__links--desktop {
+    display: none;
+  }
+
+  .top-nav__menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
