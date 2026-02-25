@@ -672,6 +672,81 @@ small {
   opacity: 0.6;
 }
 
+.digest-wrapper {
+  margin-top: var(--space-3);
+  display: flex;
+  justify-content: center;
+}
+
+.digest-card {
+  max-width: var(--max-text-width);
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: var(--space-3);
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.digest-title {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 1.4rem;
+}
+
+.digest-subtext {
+  font-size: 0.9rem;
+}
+
+.digest-list {
+  list-style: decimal;
+  padding-left: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.digest-item {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid rgba(17, 17, 17, 0.08);
+}
+
+.digest-item:last-of-type {
+  border-bottom: none;
+}
+
+.digest-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.digest-item-title {
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 1.05rem;
+}
+
+.digest-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.digest-item-score {
+  font-size: 0.9rem;
+}
+
+.digest-item-actions {
+  margin-top: var(--space-2);
+}
+
+.digest-footer-note {
+  font-size: 0.85rem;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     padding: var(--space-2);

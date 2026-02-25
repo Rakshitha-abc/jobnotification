@@ -28,6 +28,7 @@ type Filters = {
 
 const SAVED_STORAGE_KEY = 'job-notification-tracker:savedJobIds'
 const PREFERENCES_STORAGE_KEY = 'jobTrackerPreferences'
+const DIGEST_STORAGE_PREFIX = 'jobTrackerDigest_'
 
 type Preferences = {
   roleKeywords: string
@@ -220,6 +221,14 @@ function parseSalaryValue(salaryRange: string): number {
   if (Number.isNaN(base)) return 0
 
   return base
+}
+
+function getTodayKey(): string {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${DIGEST_STORAGE_PREFIX}${year}-${month}-${day}`
 }
 
 type PageProps = {
@@ -883,21 +892,256 @@ function SavedPage({ jobs, savedIds, onToggleSaved }: SavedPageProps) {
   )
 }
 
-function DigestPage() {
+type DigestPageProps = {
+  jobs: Job[]
+  preferences: Preferences
+  hasPreferences: boolean
+}
+
+type DigestItem = {
+  id: string
+  matchScore: number
+}
+
+function DigestPage({ jobs, preferences, hasPreferences }: DigestPageProps) {
+  const [digest, setDigest] = useState<DigestItem[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const todayKey = getTodayKey()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = window.localStorage.getItem(todayKey)
+      if (!stored) return
+      const parsed = JSON.parse(stored) as DigestItem[]
+      if (Array.isArray(parsed)) {
+        setDigest(
+          parsed
+            .filter((item) => typeof item.id === 'string' && typeof item.matchScore === 'number')
+            .map((item) => ({
+              id: item.id,
+              matchScore: Math.max(0, Math.min(100, Math.round(item.matchScore))),
+            })),
+        )
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [todayKey])
+
+  const scoredJobs = useMemo(
+    () =>
+      jobs.map((job) => ({
+        job,
+        matchScore: computeMatchScore(job, preferences),
+      })),
+    [jobs, preferences],
+  )
+
+  const digestJobs =
+    digest === null
+      ? null
+      : digest
+          .map((item) => {
+            const match = scoredJobs.find((scored) => scored.job.id === item.id)
+            return match ? { job: match.job, matchScore: item.matchScore } : null
+          })
+          .filter((value): value is { job: Job; matchScore: number } => value !== null)
+
+  const handleGenerate = () => {
+    if (!hasPreferences) return
+    setLoading(true)
+    try {
+      const sorted = [...scoredJobs]
+        .filter((entry) => entry.matchScore > 0)
+        .sort((a, b) => {
+          if (b.matchScore !== a.matchScore) {
+            return b.matchScore - a.matchScore
+          }
+          return a.job.postedDaysAgo - b.job.postedDaysAgo
+        })
+        .slice(0, 10)
+
+      if (sorted.length === 0) {
+        setDigest([])
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(todayKey, JSON.stringify([]))
+        }
+        return
+      }
+
+      const compact: DigestItem[] = sorted.map((entry) => ({
+        id: entry.job.id,
+        matchScore: entry.matchScore,
+      }))
+
+      setDigest(compact)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(todayKey, JSON.stringify(compact))
+      }
+    } catch {
+      // ignore errors in demo mode
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const readableDate = new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+
+  const digestAsText = useMemo(() => {
+    if (!digestJobs || digestJobs.length === 0) {
+      return ''
+    }
+    const lines: string[] = []
+    lines.push(`Top 10 Jobs For You — 9AM Digest`)
+    lines.push(readableDate)
+    lines.push('')
+    digestJobs.forEach(({ job, matchScore }, index) => {
+      lines.push(
+        `${index + 1}. ${job.title} — ${job.company} (${job.location}, ${job.experience} yrs) [Match ${matchScore}]`,
+      )
+      lines.push(`   Apply: ${job.applyUrl}`)
+      lines.push('')
+    })
+    lines.push('This digest was generated based on your preferences.')
+    lines.push('Demo Mode: Daily 9AM trigger simulated manually.')
+    return lines.join('\n')
+  }, [digestJobs, readableDate])
+
+  const handleCopyDigest = () => {
+    if (!digestAsText) return
+    try {
+      void navigator.clipboard.writeText(digestAsText)
+    } catch {
+      // ignore clipboard errors in demo mode
+    }
+  }
+
+  const handleEmailDraft = () => {
+    if (!digestAsText) return
+    const subject = encodeURIComponent('My 9AM Job Digest')
+    const body = encodeURIComponent(digestAsText)
+    const href = `mailto:?subject=${subject}&body=${body}`
+    try {
+      window.location.href = href
+    } catch {
+      // ignore navigation errors
+    }
+  }
+
   return (
     <main className="layout-columns">
       <section className="primary-workspace">
         <h2 className="section-title">Primary workspace</h2>
         <h1 className="placeholder-title">Digest</h1>
         <p className="placeholder-subtext">
-          No digests yet. A daily 9AM summary of relevant roles will be introduced in a later step.
+          Daily 9AM-style summary of roles that align with your preferences. This is a simulated
+          demo inside the browser.
         </p>
+        <p className="placeholder-subtext">Demo Mode: Daily 9AM trigger simulated manually.</p>
+
+        {!hasPreferences ? (
+          <p className="placeholder-subtext">
+            Set preferences to generate a personalized digest.
+          </p>
+        ) : (
+          <div className="btn-row">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleGenerate}
+              disabled={loading}
+            >
+              Generate Today&apos;s 9AM Digest (Simulated)
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleCopyDigest}
+              disabled={!digestJobs || digestJobs.length === 0}
+            >
+              Copy Digest to Clipboard
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleEmailDraft}
+              disabled={!digestJobs || digestJobs.length === 0}
+            >
+              Create Email Draft
+            </button>
+          </div>
+        )}
+
+        <div className="digest-wrapper">
+          <div className="digest-card">
+            <h2 className="digest-title">Top 10 Jobs For You — 9AM Digest</h2>
+            <p className="digest-subtext">{readableDate}</p>
+
+            {!hasPreferences ? (
+              <p className="placeholder-subtext">
+                Set preferences in the Settings page to see a personalized digest here.
+              </p>
+            ) : !digestJobs ? (
+              <p className="placeholder-subtext">No digest generated yet for today.</p>
+            ) : digestJobs.length === 0 ? (
+              <p className="placeholder-subtext">
+                No matching roles today. Check again tomorrow.
+              </p>
+            ) : (
+              <ol className="digest-list">
+                {digestJobs.map(({ job, matchScore }) => (
+                  <li key={job.id} className="digest-item">
+                    <div className="digest-item-header">
+                      <div>
+                        <div className="digest-item-title">{job.title}</div>
+                        <div className="digest-item-meta">
+                          <span>{job.company}</span>
+                          <span>•</span>
+                          <span>{job.location}</span>
+                          <span>•</span>
+                          <span>{job.experience} yrs</span>
+                        </div>
+                      </div>
+                      <div className="digest-item-score">Match {matchScore}</div>
+                    </div>
+                    <div className="digest-item-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          try {
+                            window.open(job.applyUrl, '_blank', 'noopener,noreferrer')
+                          } catch {
+                            // ignore window errors
+                          }
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <p className="digest-footer-note">
+              This digest was generated based on your preferences.
+            </p>
+          </div>
+        </div>
       </section>
 
       <aside className="secondary-panel">
         <h2 className="section-title">Secondary panel</h2>
         <p className="placeholder-subtext">
-          Use this section later to review patterns across your job notifications over time.
+          In a production system this panel could show how today&apos;s digest compares to previous
+          days. For now it simply mirrors the calm, structured design.
         </p>
       </aside>
     </main>
@@ -1051,7 +1295,7 @@ function AppShell() {
           path="/saved"
           element={<SavedPage jobs={allJobs} savedIds={savedIds} onToggleSaved={toggleSaved} />}
         />
-        <Route path="/digest" element={<DigestPage />} />
+        <Route path="/digest" element={<DigestPage jobs={allJobs} preferences={preferences} hasPreferences={hasPreferences} />} />
         <Route
           path="/settings"
           element={<SettingsPage preferences={preferences} setPreferences={setPreferences} />}
