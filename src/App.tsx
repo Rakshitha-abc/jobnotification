@@ -1193,7 +1193,7 @@ function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const stepTotal = 4
   const currentStep = 2
-   const { preferences, setPreferences } = usePreferences()
+  const { preferences, setPreferences } = usePreferences()
   const { savedIds, toggleSaved } = useSavedJobs()
 
   const hasPreferences =
@@ -1295,7 +1295,10 @@ function AppShell() {
           path="/saved"
           element={<SavedPage jobs={allJobs} savedIds={savedIds} onToggleSaved={toggleSaved} />}
         />
-        <Route path="/digest" element={<DigestPage jobs={allJobs} preferences={preferences} hasPreferences={hasPreferences} />} />
+        <Route
+          path="/digest"
+          element={<DigestPage jobs={allJobs} preferences={preferences} hasPreferences={hasPreferences} />}
+        />
         <Route
           path="/settings"
           element={<SettingsPage preferences={preferences} setPreferences={setPreferences} />}
@@ -1334,3 +1337,4 @@ function App() {
 }
 
 export default App
+

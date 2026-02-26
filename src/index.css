@@ -591,6 +591,64 @@ small {
   font-size: 0.8rem;
 }
 
+.status-label {
+  font-size: 0.85rem;
+}
+
+.job-card__status-row {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.status-button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.status-button {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: 4px var(--space-1);
+  font-size: 0.8rem;
+  background-color: var(--color-bg);
+  cursor: pointer;
+}
+
+.status-button--active {
+  background-color: var(--color-text);
+  color: var(--color-bg);
+}
+
+.status-pill {
+  border-radius: var(--radius);
+  border: 1px solid var(--color-text);
+  padding: 2px var(--space-1);
+  font-size: 0.8rem;
+}
+
+.status-pill--not-applied {
+  opacity: 0.7;
+}
+
+.status-pill--applied {
+  border-color: #1f4b99;
+  color: #1f4b99;
+}
+
+.status-pill--rejected {
+  border-color: #8B0000;
+  color: #8B0000;
+}
+
+.status-pill--selected {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
