@@ -805,6 +805,64 @@ small {
   font-size: 0.85rem;
 }
 
+.checklist-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.checklist-summary-count {
+  font-weight: 600;
+}
+
+.checklist-summary-warning {
+  font-size: 0.9rem;
+}
+
+.checklist-summary-success {
+  font-size: 0.9rem;
+}
+
+.checklist-reset-row {
+  margin-top: var(--space-2);
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.checklist-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.checklist-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.95rem;
+}
+
+.checklist-label input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+}
+
+.checklist-hint {
+  font-size: 0.8rem;
+  cursor: default;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     padding: var(--space-2);

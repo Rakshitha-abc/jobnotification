@@ -29,6 +29,7 @@ type Filters = {
 const SAVED_STORAGE_KEY = 'job-notification-tracker:savedJobIds'
 const PREFERENCES_STORAGE_KEY = 'jobTrackerPreferences'
 const DIGEST_STORAGE_PREFIX = 'jobTrackerDigest_'
+const TEST_STORAGE_KEY = 'jobTrackerTestStatus'
 
 type Preferences = {
   roleKeywords: string
@@ -139,6 +140,104 @@ function usePreferences(): PreferencesState {
   }
 
   return { preferences, setPreferences }
+}
+
+type TestItemId =
+  | 'preferencesPersist'
+  | 'matchScoreCorrect'
+  | 'showOnlyMatchesWorks'
+  | 'saveJobPersists'
+  | 'applyOpensNewTab'
+  | 'statusPersists'
+  | 'statusFilterWorks'
+  | 'digestTop10'
+  | 'digestPersists'
+  | 'noConsoleErrors'
+
+type TestStatus = Record<TestItemId, boolean>
+
+const allTestIds: TestItemId[] = [
+  'preferencesPersist',
+  'matchScoreCorrect',
+  'showOnlyMatchesWorks',
+  'saveJobPersists',
+  'applyOpensNewTab',
+  'statusPersists',
+  'statusFilterWorks',
+  'digestTop10',
+  'digestPersists',
+  'noConsoleErrors',
+]
+
+function getInitialTestStatus(): TestStatus {
+  const base: TestStatus = {
+    preferencesPersist: false,
+    matchScoreCorrect: false,
+    showOnlyMatchesWorks: false,
+    saveJobPersists: false,
+    applyOpensNewTab: false,
+    statusPersists: false,
+    statusFilterWorks: false,
+    digestTop10: false,
+    digestPersists: false,
+    noConsoleErrors: false,
+  }
+
+  if (typeof window === 'undefined') {
+    return base
+  }
+
+  try {
+    const stored = window.localStorage.getItem(TEST_STORAGE_KEY)
+    if (!stored) return base
+    const parsed = JSON.parse(stored)
+    if (parsed && typeof parsed === 'object') {
+      const result: TestStatus = { ...base }
+      for (const id of allTestIds) {
+        if (typeof parsed[id] === 'boolean') {
+          result[id] = parsed[id] as boolean
+        }
+      }
+      return result
+    }
+  } catch {
+    // ignore parse errors
+  }
+
+  return base
+}
+
+type TestChecklistState = {
+  status: TestStatus
+  toggleItem: (id: TestItemId) => void
+  reset: () => void
+  passedCount: number
+  total: number
+}
+
+function useTestChecklist(): TestChecklistState {
+  const [status, setStatus] = useState<TestStatus>(() => getInitialTestStatus())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(TEST_STORAGE_KEY, JSON.stringify(status))
+    } catch {
+      // ignore storage errors
+    }
+  }, [status])
+
+  const toggleItem = (id: TestItemId) => {
+    setStatus((current) => ({ ...current, [id]: !current[id] }))
+  }
+
+  const reset = () => {
+    setStatus(getInitialTestStatus())
+  }
+
+  const passedCount = allTestIds.reduce((acc, id) => (status[id] ? acc + 1 : acc), 0)
+
+  return { status, toggleItem, reset, passedCount, total: allTestIds.length }
 }
 
 function computeMatchScore(job: Job, preferences: Preferences): number {
@@ -1170,6 +1269,177 @@ function ProofPage() {
   )
 }
 
+type TestChecklistPageProps = {
+  testStatus: TestStatus
+  toggleItem: (id: TestItemId) => void
+  reset: () => void
+  passedCount: number
+  total: number
+}
+
+const testItems: { id: TestItemId; label: string; hint: string }[] = [
+  {
+    id: 'preferencesPersist',
+    label: 'Preferences persist after refresh',
+    hint: 'Set preferences, refresh the page, and confirm fields are pre-filled.',
+  },
+  {
+    id: 'matchScoreCorrect',
+    label: 'Match score calculates correctly',
+    hint: 'Use clear role keywords and verify scores change as expected.',
+  },
+  {
+    id: 'showOnlyMatchesWorks',
+    label: '"Show only matches" toggle works',
+    hint: 'Enable the toggle and confirm low-scoring roles are hidden.',
+  },
+  {
+    id: 'saveJobPersists',
+    label: 'Save job persists after refresh',
+    hint: 'Save a job, refresh, and confirm it appears in Saved.',
+  },
+  {
+    id: 'applyOpensNewTab',
+    label: 'Apply opens in new tab',
+    hint: 'Click Apply and confirm the source site opens separately.',
+  },
+  {
+    id: 'statusPersists',
+    label: 'Status update persists after refresh',
+    hint: 'When status is implemented, update a job and refresh.',
+  },
+  {
+    id: 'statusFilterWorks',
+    label: 'Status filter works correctly',
+    hint: 'When status is implemented, filter by each state and verify.',
+  },
+  {
+    id: 'digestTop10',
+    label: 'Digest generates top 10 by score',
+    hint: 'Generate a digest and confirm it prioritizes high scores.',
+  },
+  {
+    id: 'digestPersists',
+    label: 'Digest persists for the day',
+    hint: 'Generate a digest, refresh, and confirm it reappears unchanged.',
+  },
+  {
+    id: 'noConsoleErrors',
+    label: 'No console errors on main pages',
+    hint: 'Navigate key routes and ensure the console stays clean.',
+  },
+]
+
+function TestChecklistPage({
+  testStatus,
+  toggleItem,
+  reset,
+  passedCount,
+  total,
+}: TestChecklistPageProps) {
+  const allPassed = passedCount === total
+
+  return (
+    <main className="layout-columns">
+      <section className="primary-workspace">
+        <h2 className="section-title">Primary workspace</h2>
+        <h1 className="placeholder-title">Built-In Test Checklist</h1>
+        <p className="placeholder-subtext">
+          Use this page to verify that the Job Notification Tracker behaves as expected before you
+          consider it ready to ship.
+        </p>
+
+        <div className="card">
+          <div className="card__body">
+            <div className="checklist-summary">
+              <span className="checklist-summary-count">
+                Tests Passed: {passedCount} / {total}
+              </span>
+              {!allPassed ? (
+                <span className="checklist-summary-warning">
+                  Resolve all issues before shipping.
+                </span>
+              ) : (
+                <span className="checklist-summary-success">All tests passed. Ready to ship.</span>
+              )}
+            </div>
+            <div className="checklist-reset-row">
+              <button type="button" className="btn btn-secondary" onClick={reset}>
+                Reset Test Status
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card__title">Test checklist</div>
+          <div className="card__body">
+            <ul className="checklist">
+              {testItems.map((item) => (
+                <li key={item.id} className="checklist-item-row">
+                  <label className="checklist-label">
+                    <input
+                      type="checkbox"
+                      checked={testStatus[item.id]}
+                      onChange={() => toggleItem(item.id)}
+                    />
+                    <span>{item.label}</span>
+                  </label>
+                  <span className="checklist-hint" title={item.hint}>
+                    How to test
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <aside className="secondary-panel">
+        <h2 className="section-title">Secondary panel</h2>
+        <p className="placeholder-subtext">
+          This panel keeps the overall intent clear: calm, predictable behaviour across preferences,
+          matching, saving, digest, and error handling.
+        </p>
+      </aside>
+    </main>
+  )
+}
+
+type ShipPageProps = {
+  allTestsPassed: boolean
+}
+
+function ShipPage({ allTestsPassed }: ShipPageProps) {
+  return (
+    <main className="layout-columns">
+      <section className="primary-workspace">
+        <h2 className="section-title">Primary workspace</h2>
+        <h1 className="placeholder-title">Ship Readiness</h1>
+        {allTestsPassed ? (
+          <p className="placeholder-subtext">
+            All checklist items are complete. You can confidently treat this version as ready to
+            demo or ship, subject to any additional manual reviews you require.
+          </p>
+        ) : (
+          <p className="placeholder-subtext">
+            Complete all tests before shipping. The ship step remains locked until every checklist
+            item in the Test Checklist page has been marked as passed.
+          </p>
+        )}
+      </section>
+
+      <aside className="secondary-panel">
+        <h2 className="section-title">Secondary panel</h2>
+        <p className="placeholder-subtext">
+          Once the ship gate is open, you can adapt this section to capture release notes, links to
+          deployments, and sign-off from reviewers.
+        </p>
+      </aside>
+    </main>
+  )
+}
+
 function NotFoundPage() {
   return (
     <main className="layout-columns">
@@ -1191,10 +1461,9 @@ function NotFoundPage() {
 
 function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const stepTotal = 4
-  const currentStep = 2
   const { preferences, setPreferences } = usePreferences()
   const { savedIds, toggleSaved } = useSavedJobs()
+  const { status, toggleItem, reset, passedCount, total } = useTestChecklist()
 
   const hasPreferences =
     preferences.roleKeywords.trim().length > 0 ||
@@ -1215,9 +1484,7 @@ function AppShell() {
     <div className="app-shell">
       <header className="top-bar">
         <div className="top-bar__left">Job Notification Tracker</div>
-        <div className="top-bar__center">
-          Step {currentStep} / {stepTotal}
-        </div>
+        <div className="top-bar__center" />
         <div className="top-bar__right">
           <nav className="top-nav">
             <div className="top-nav__links top-nav__links--desktop">
@@ -1304,30 +1571,21 @@ function AppShell() {
           element={<SettingsPage preferences={preferences} setPreferences={setPreferences} />}
         />
         <Route path="/proof" element={<ProofPage />} />
+        <Route
+          path="/jt/07-test"
+          element={
+            <TestChecklistPage
+              testStatus={status}
+              toggleItem={toggleItem}
+              reset={reset}
+              passedCount={passedCount}
+              total={total}
+            />
+          }
+        />
+        <Route path="/jt/08-ship" element={<ShipPage allTestsPassed={passedCount === total} />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-
-      <footer className="proof-footer">
-        <div className="proof-footer__label">Proof checklist</div>
-        <div className="proof-footer__items">
-          <div className="checklist-item">
-            <span className="checklist-box" />
-            <span>UI Built</span>
-          </div>
-          <div className="checklist-item">
-            <span className="checklist-box" />
-            <span>Logic Working</span>
-          </div>
-          <div className="checklist-item">
-            <span className="checklist-box" />
-            <span>Test Passed</span>
-          </div>
-          <div className="checklist-item">
-            <span className="checklist-box" />
-            <span>Deployed</span>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
