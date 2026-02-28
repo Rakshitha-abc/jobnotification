@@ -330,27 +330,6 @@ function getTodayKey(): string {
   return `${DIGEST_STORAGE_PREFIX}${year}-${month}-${day}`
 }
 
-type PageProps = {
-  title: string
-}
-
-function PlaceholderPage({ title }: PageProps) {
-  return (
-    <main className="layout-columns">
-      <section className="primary-workspace">
-        <h2 className="section-title">Primary workspace</h2>
-        <h1 className="placeholder-title">{title}</h1>
-        <p className="placeholder-subtext">This section will be built in the next step.</p>
-      </section>
-
-      <aside className="secondary-panel">
-        <h2 className="section-title">Secondary panel</h2>
-        <p className="placeholder-subtext">This section will be built in the next step.</p>
-      </aside>
-    </main>
-  )
-}
-
 function LandingPage() {
   const navigate = useNavigate()
 
